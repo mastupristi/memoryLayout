@@ -18,7 +18,7 @@ I started with SDK 2.5.1 for NXP i.MX RT1050. I took the example
 - link-to-ram project
 - flash project
 
-Nel repositorio ho aggiunto anche i file elf (con estensione `.axf`)  e i file map:
+In the repository I added also the elf files (with extension `.axf`) and the map files:
 
 ```
 -rwxrwxr-x 1 max max 1948540 apr 17 13:19 evkbimxrt1050_sai_interrupt_transfer_flash.axf*

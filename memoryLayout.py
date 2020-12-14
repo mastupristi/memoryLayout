@@ -48,7 +48,13 @@ def buildLoadMap(elfFileName, memConf):
                                 section['sh_type'] == 'SHT_NOBITS' and
                                 segment['p_type'] != 'PT_TLS') and
                             segment.section_in_segment(section)):
-                        memMapConf[section.name] = addr2region(segment.header['p_paddr'], memConf)
+                        loadAddr = 0
+                        if ( (section['sh_flags'] & SH_FLAGS.SHF_ALLOC) != 0 and
+                                section['sh_type'] != 'SHT_NOBITS') :
+                            loadAddr = segment.header['p_paddr'] + section['sh_addr'] - segment.header['p_vaddr']
+                        else :
+                            loadAddr = segment.header['p_paddr'] + section['sh_offset'] - segment.header['p_offset']
+                        memMapConf[section.name] = (addr2region(segment.header['p_paddr'], memConf), loadAddr)
     return memMapConf
 
 def size2string(sz):
@@ -100,31 +106,32 @@ def process_file(filename, verbose, rodata, percentages, humanReadable, debugReg
 
                 if debugReg and debugReg == MemRegion :
                     print("%16s @ 0x%.8x" % (sect.name, memConf[debugReg]['Origin'] + MemLayout[MemRegion]['Tot'] + aligmentAdj))
-                actualSize = sect.header['sh_size']+aligmentAdj
+                actualSize = sect.header['sh_size'] + aligmentAdj
                 MemLayout[MemRegion]['Tot'] += actualSize
                 MemLayout[MemRegion][section] += actualSize
- 
+
                 if verbose:
                     print("adding %s section to %s%s (%d bytes%s)" %(sect.name, MemRegion, section, sect.header['sh_size'], adjStr))
         for sect in ELFFile(f).iter_sections():
             if 0 != (sect.header['sh_flags'] & SH_FLAGS.SHF_ALLOC) :
                 if sect.name in memMapConf and sect.header['sh_type'] != 'SHT_NOBITS':
-                    MapRegion = memMapConf[sect.name]
-                    aligmentAdj = MemLayout[MapRegion]['Tot']%sect.header['sh_addralign']
-                    if aligmentAdj != 0 :
-                        aligmentAdj = sect.header['sh_addralign']-aligmentAdj
+                    MapRegion = memMapConf[sect.name][0]
+                    SectionLoadAddr = memMapConf[sect.name][1]
+                    if (SectionLoadAddr - memConf[MapRegion]['Origin']) != MemLayout[MapRegion]['Tot'] :
+                        aligmentAdj = (SectionLoadAddr - memConf[MapRegion]['Origin']) - MemLayout[MapRegion]['Tot']
                         adjStr = " + %d bytes due to alignment %d" % (aligmentAdj, sect.header['sh_addralign'])
                     else:
+                        aligmentAdj = 0
                         adjStr = ""
+
                     if debugReg and debugReg == MapRegion :
-                        print("%16s @ 0x%.8x" % (sect.name, memConf[debugReg]['Origin'] + MemLayout[MapRegion]['Tot'] + aligmentAdj))
-                    actualSize = sect.header['sh_size']+aligmentAdj
+                        print("%16s @ 0x%.8x" % (sect.name, SectionLoadAddr))
+                    actualSize = sect.header['sh_size'] + aligmentAdj
                     MemLayout[MapRegion]['Tot'] += actualSize
                     MemLayout[MapRegion]['LoadMap'] += actualSize
 
                     if verbose:
                         print("load %s section to %s%s (%d bytes%s)" %(sect.name, MapRegion, section, sect.header['sh_size'], adjStr))
-
 
         RegionNameLen = max([len(x) for x in MemLayout.keys()] + [16,])
 
@@ -136,7 +143,7 @@ def process_file(filename, verbose, rodata, percentages, humanReadable, debugReg
             for memReg in MemLayout :
                 sizeStringArray[memReg] = [(" %10d B" % sz) for sz in MemLayout[memReg].values()]
 
-        if percentages :        
+        if percentages :
             if rodata:
                 print("%-*s                    .text                .rodata                  .data                   .bss                LoadMap        Total  Region Size  %%age Used" % (RegionNameLen, "Memory region"))
                 for memReg in MemLayout :

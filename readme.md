@@ -6,7 +6,13 @@ of an elf file.
 What we want is to know how the various memory regions are divided between
 `.text` (code), `.data` (initialized data), `.bss` (uninitialized data).
 Eventually also dissect further `.text` to highlight also `.rodata` (constant
-data).
+data).<br>
+In addition to this we would like to have the detail of the symbols, their
+allocation in the regions and especially the source file where these symbols
+are declared, or at least the `.o` file that contains the symbol. This allows
+us to be able to find bottlenecks in memory usage: Which symbols are the _largest_
+and which source file declares them. This allows us to do static profiling
+of memory usage.
 
 Using the tools available in the binutils, you can't dissect that deep.
 
@@ -242,9 +248,134 @@ Memory region             .text      .rodata        .data         .bss      Load
      BOARD_SDRAM:           0 B          0 B          0 B          0 B          0 B          0 B
 ```
 
+## dissect.py
+
+The purpose of this tool is to retrieve from the `.elf` file the list of all symbols
+and associate to them the source or object file that declare them. It can also indicate
+the line of the source where the symbol has been declared (only if this information is
+present in the `.elf` file) and tries to _guess_ also the `*fill*` gaps.
+
+### synopsis
+
+```
+$ python3 dissect.py --help
+usage: dissect.py [-h] [-t {normal,csv}] [-o OUT] [-r REG] [-u] [-f] [-l] [-p PREFIX] elffile mapfile
+
+positional arguments:
+  elffile               input elf file
+  mapfile               input map file
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -t {normal,csv}, --type {normal,csv}
+                        output type (default: normal)
+  -o OUT, --out OUT     out file (default: stdout)
+  -r REG, --region REG  memory region to dissect (default: all)
+  -u, --uniq            filter symbols @address already populated
+  -f, --fill            try to guess the *fill* fields
+  -l, --noline          remove any line number from files
+  -p PREFIX, --prefix PREFIX
+                        prefix for nm tool (e.g. arm-none-eabi-, default: "")
+  ```
+
+It integrates the information contained in the `.elf` file together with that of the
+`.map` file to get the most specific details possible about the symbols.<br>
+For this reason it is mandatory to provide this tool with both `.elf` and `.map`.<br>
+This tool makes use of system tools such as `grep`, `sed`, `tr`, etc. To get the list
+of symbols from `.elf` it uses `nm` possibly by specific architecture (using `--prefix`
+parameter). The used `nm` tool is required to be in the `PATH`.<br>
+It can produce a human readable output or a csv to be imported by spreadsheets and be
+able to filter, search or find the information we are looking for.<br>
+It may happen that several symbols have the same address and size (e.g. `__attribute__((alias))`).
+Normally all symbols are listed, but this can be misleading when calculating cell sizes.
+With the `--uniq` option only one of the symbols is listed.<br>
+Due to data types or alignments placed on memory sections, it may happen that there
+are "gaps" between various symbols. In the `.map` file they are indicated with `*fill*`.
+Using the `--fill` option you ask the tool to try to guess these gaps and list them.
+
+### examples
+
+```
+$ python3 dissect.py --type=normal --uniq --prefix=arm-none-eabi- examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.axf examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.map
+          Region  addr(hex)    addr(dec) size(hex)  type                                   symbol path
+        SRAM_ITC 0x00000000            0       672     T                             g_pfnVectors /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../startup/startup_mimxrt1052.c:414
+        SRAM_ITC 0x000002f0          752        76     T                                 ResetISR /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../startup/startup_mimxrt1052.c:630
+        SRAM_ITC 0x0000033c          828        30     T                                data_init /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../startup/startup_mimxrt1052.c:596
+        SRAM_ITC 0x0000035a          858        18     T                                 bss_init /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../startup/startup_mimxrt1052.c:605
+        SRAM_ITC 0x0000036c          876         2     W                              NMI_Handler /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../startup/startup_mimxrt1052.c:722
+[...]
+        SRAM_DTC 0x20000120    536871200         4     b                               s_saiTxIsr /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_sai.c:109
+        SRAM_DTC 0x20000124    536871204         4     b                               s_saiRxIsr /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_sai.c:111
+        SRAM_DTC 0x20000128    536871208       112     b                                reg_cache /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../codec/fsl_wm8960.c:34
+        SRAM_DTC 0x20000198    536871320       180     B                                   __Ciob /usr/local/mcuxpressoide-10.3.1_2233/ide/plugins/com.nxp.mcuxpresso.tools.linux_10.3.0.201811011841/tools/bin/../lib/gcc/arm-none-eabi/7.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m/fpv5/hard/libcr_semihost_nf.a(__ciob.o)
+        SRAM_DTC 0x2000024c    536871500         4     B                            __end_of_heap /usr/local/mcuxpressoide-10.3.1_2233/ide/plugins/com.nxp.mcuxpresso.tools.linux_10.3.0.201811011841/tools/bin/../lib/gcc/arm-none-eabi/7.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m/fpv5/hard/libcr_c.a(__init_alloc.o)
+        SRAM_DTC 0x20000250    536871504         4     B                                  __heaps /usr/local/mcuxpressoide-10.3.1_2233/ide/plugins/com.nxp.mcuxpresso.tools.linux_10.3.0.201811011841/tools/bin/../lib/gcc/arm-none-eabi/7.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m/fpv5/hard/libcr_c.a(__init_alloc.o)
+        SRAM_DTC 0x20000254    536871508         4     B                                    errno /usr/local/mcuxpressoide-10.3.1_2233/ide/plugins/com.nxp.mcuxpresso.tools.linux_10.3.0.201811011841/tools/bin/../lib/gcc/arm-none-eabi/7.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m/fpv5/hard/libcr_c.a(errno.o)
+        SRAM_DTC 0x20000258    536871512         1     b                               isFinished /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../source_transfer/sai_interrupt_transfer.c:59
+
+
+python3 dissect.py --type=normal --fill --prefix=arm-none-eabi- examples/evkbimxrt1050_sai_interrupt_transfer_flash.axf examples/evkbimxrt1050_sai_interrupt_transfer_flash.map
+          Region  addr(hex)    addr(dec) size(hex)  type                                   symbol path
+        SRAM_DTC 0x20000000    536870912         4     D                          SystemCoreClock /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../device/system_MIMXRT1052.c:67
+        SRAM_DTC 0x20000004    536870916        24     D                         boardCodecConfig /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../board/board.c:22
+        SRAM_DTC 0x2000001c    536870940        28     b                      s_debugConsoleState /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../utilities/fsl_debug_console.c:194
+        SRAM_DTC 0x20000038    536870968         4     B                           g_serialHandle /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../utilities/fsl_debug_console.c:195
+        SRAM_DTC 0x2000003c    536870972        76     B                                 txHandle /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../source_transfer/sai_interrupt_transfer.c:58
+        SRAM_DTC 0x20000088    536871048        24     B                              codecHandle /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../source_transfer/sai_interrupt_transfer.c:61
+        SRAM_DTC 0x200000a0    536871072         4     B                               g_xtalFreq /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_clock.c:51
+        SRAM_DTC 0x200000a4    536871076         4     B                            g_rtcXtalFreq /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_clock.c:53
+        SRAM_DTC 0x200000a8    536871080         4     b                         s_lpi2cMasterIsr /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_lpi2c.c:133
+        SRAM_DTC 0x200000ac    536871084        20     b                      s_lpi2cMasterHandle /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_lpi2c.c:136
+[...]
+     BOARD_FLASH 0x6001558c   1610700172        36     t                            s_lpuartBases /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_lpuart.c:76
+     BOARD_FLASH 0x600155b0   1610700208        18     t                            s_lpuartClock /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_lpuart.c:88
+     BOARD_FLASH 0x600155c2   1610700226      1022                                         *fill* 
+     BOARD_FLASH 0x600159c0   1610701248        16     t                               s_saiBases /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_sai.c:98
+     BOARD_FLASH 0x600159d0   1610701264         8     t                               s_saiTxIRQ /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_sai.c:102
+     BOARD_FLASH 0x600159d8   1610701272         8     t                               s_saiClock /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_sai.c:106
+     BOARD_FLASH 0x600159e0   1610701280        36     t                      s_LpuartAdapterBase /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../component/uart/lpuart_adapter.c:63
+     BOARD_FLASH 0x60015a04   1610701316      2524                                         *fill* 
+     BOARD_FLASH 0x600163e0   1610703840       112     t                               wm8960_reg /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../codec/fsl_wm8960.c:27
+     BOARD_FLASH 0x60016450   1610703952       160                                         *fill* 
+     BOARD_FLASH 0x600164f0   1610704112         8     T          armPllConfig_BOARD_BootClockRUN /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../board/clock_config.c:142
+     BOARD_FLASH 0x600164f8   1610704120        20     T          sysPllConfig_BOARD_BootClockRUN /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../board/clock_config.c:146
+     BOARD_FLASH 0x6001650c   1610704140        40                                         *fill* 
+     BOARD_FLASH 0x60016534   1610704180         4     T                       __num_Ciob_streams /usr/local/mcuxpressoide-10.3.1_2233/ide/plugins/com.nxp.mcuxpresso.tools.linux_10.3.0.201811011841/tools/bin/../lib/gcc/arm-none-eabi/7.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m/fpv5/hard/libcr_semihost_nf.a(__ciob.o)
+```
+
+### note on the size of the memory sections
+
+It may happen that if you add up the size of the symbols contained in a specific memory
+region, the result may be a different number than the one indicated by the `memoryLayout.py` tool.
+
+For example:
+
+```
+$ python3 dissect.py --type=normal --fill --uniq --region=BOARD_FLASH --prefix=arm-none-eabi- examples/evkbimxrt1050_sai_interrupt_transfer_flash.axf examples/evkbimxrt1050_sai_interrupt_transfer_flash.map | awk '{s+=$4} END {print s}'
+91448
+```
+
+but `memoryLayout.py` says `91552` (.text + .rodata)
+
+and again
+
+```
+$ python3 dissect.py --type=normal --fill --uniq --region=SRAM_DTC --prefix=arm-none-eabi- examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.axf examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.map | awk '{s+=$4} END {print s}'
+601
+```
+but `memoryLayout.py` says `8796` (.data + .bss)
+
+This is because of some factors: `*fill*` gaps at the end of a region (to maintain alignment);
+directives given in the linker script such as reserving space for heap and stack, that don't
+correspond to any symbol.<br>
+In all the cases I analyzed, I was able to give an explanation.<br>
+If you find cases that you can't explain, please let me know, sending me also `.elf` and `.map`
+and indicating the exact version of toolchain you used.
+
+
 ## Further readings and developments
 
-these tools were inspired by reading this post:
+These tools were inspired by reading this post:
 
 [Tracking Firmware Code Size](https://interrupt.memfault.com/blog/code-size-deltas)
 

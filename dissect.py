@@ -4,7 +4,7 @@
 
 import argparse
 import sys
-from MapMemConfig import MapMemConfigDict
+from RegionRetriever import RegionRetriever
 from MetadataRetriever import MetadataRetriever
 
 
@@ -41,7 +41,12 @@ def main():
     else:
         csv = False
 
-    Regions = MapMemConfigDict(args.mapfile)
+    try:
+        memMapRetriever = RegionRetriever(mapFile=args.mapfile)
+    except:
+        print("Error occurred! Does %s file exist?" % args.mapfile)
+        sys.exit()
+    Regions = memMapRetriever.GetRegions()
 
     metadataRetriever = MetadataRetriever(args.elffile, args.mapfile, Regions, args.prefix)
     symbolList = metadataRetriever.retreiveSymbols()

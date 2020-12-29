@@ -3,8 +3,7 @@
 from __future__ import print_function
 import sys
 import argparse
-from MapMemConfig import MapMemConfig
-import json
+from RegionRetriever import RegionRetriever
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--human", help="print human readable", action='store_true', default=False)
@@ -12,13 +11,17 @@ parser.add_argument("mapfile", help="input map file")
 
 args = parser.parse_args()
 
-strJson = MapMemConfig(args.mapfile)
+try:
+    memMapRetriever = RegionRetriever(mapFile=args.mapfile)
+except:
+    print("Error occurred! Does %s file exist?" % args.mapfile)
+    sys.exit()
 
 if args.human :
-    memDict = json.loads(strJson)
+    memDict = memMapRetriever.GetRegions()
     print("%-16s %-18s %-18s %s" % ("Name","Origin","Length","Attributes") )
     for RegionName in memDict :
         regionDesc = memDict[RegionName]
         print("%-16s 0x%016x 0x%016x %s" % ((RegionName,) + tuple(regionDesc.values())))
 else :
-    print(strJson)
+    print(memMapRetriever.GetRegionsJson())

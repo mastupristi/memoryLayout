@@ -3,8 +3,7 @@
 from __future__ import print_function
 import sys
 import argparse
-import json
-from MapMemConfig import MapMemConfig
+from RegionRetriever import RegionRetriever
 
 # If pyelftools is not installed, the example can also run from the root or
 # examples/ dir of the source distribution.
@@ -12,21 +11,6 @@ sys.path[0:0] = ['.', '..']
 
 from elftools.elf.elffile import ELFFile
 from elftools.elf.constants import SH_FLAGS
-
-def buildMemoryConfiguraiton(elffile, mapfile):
-    memConf = []
-    with open(elffile, 'rb') as f:
-        sect = ELFFile(f).get_section_by_name(".memory_configuration")
-        if sect :
-            encStr = sect.data()
-        else :
-            try:
-                encStr = MapMemConfig(mapfile)
-            except TypeError as err:
-                print("elf file does not contain '.memory_configuration' section\nmapfile must be provided: {0}".format(err))
-                sys.exit(1)
-        memConf = json.loads(encStr)
-    return memConf
 
 def addr2region(addr, memConf) :
     for regionName in memConf:
@@ -178,7 +162,13 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    memConf = buildMemoryConfiguraiton(args.elffile, args.mapfile)
+    try:
+        memMapRetriever = RegionRetriever(args.elffile, args.mapfile)
+    except:
+        print("elffile must exist and contain '.memory_configuration' section, or at least map file must be provided.", sys.exc_info()[0])
+        sys.exit()
+    
+    memConf = memMapRetriever.GetRegions()
 
     process_file(args.elffile, args.verbose, args.extract_rodata, args.percentages, args.human_readable, args.debug_region, memConf)
 

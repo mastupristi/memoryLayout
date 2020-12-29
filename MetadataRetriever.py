@@ -1,10 +1,11 @@
 import subprocess
-from MapMemConfig import MapMemConfigDict
+from RegionRetriever import RegionRetriever
 
 class MetadataRetriever:
     def __init__(self, elfFile, mapFile, regions=None, nmPrefix=""):
         if None == regions:
-            regions = MapMemConfigDict(mapFile)
+            memMapRetriever = RegionRetriever(elfFile, mapFile)
+            regions = memMapRetriever.GetRegions()
         self.regions = regions
 
         def retreiveSymbolLines(nmPrefix, elfFile):

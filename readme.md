@@ -372,6 +372,33 @@ In all the cases I analyzed, I was able to give an explanation.<br>
 If you find cases that you can't explain, please let me know, sending me also `.elf` and `.map`
 and indicating the exact version of toolchain you used.
 
+## regions.py
+
+This tool simply lists the names of the memory regions. It can be useful in shell scripts.
+
+### synopsis
+
+```
+$ python3 regions.py --helpusage: regions.py [-h] elffile [mapfile]
+
+positional arguments:
+  elffile     input elf file
+  mapfile     input map file
+
+optional arguments:
+  -h, --help  show this help message and exit
+```
+
+### examples
+
+```
+$ python3 regions.py examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.axf examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.map 
+BOARD_FLASH
+SRAM_ITC
+SRAM_DTC
+SRAM_OC
+BOARD_SDRAM
+```
 
 ## Further readings and developments
 

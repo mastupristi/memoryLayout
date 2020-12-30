@@ -44,7 +44,7 @@ def main():
                 svgwrite.rgb(50, 50, 70, '%'),
                 svgwrite.rgb(70, 70, 50, '%')]
     
-    dwg = svgwrite.Drawing(args.output, profile='full')
+    dwg = svgwrite.Drawing(args.output, profile='full', size=(str(width), str(heigth)))
     dwg.add(dwg.rect((0, 0), (width, heigth), fill=bgColor))
 
     fgColorVectorDim = len(fgColor)

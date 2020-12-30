@@ -400,6 +400,40 @@ SRAM_OC
 BOARD_SDRAM
 ```
 
+## dissectSvg.py (experimental)
+
+This experimental tool, similarly to `dissect.py`, calculates the allocation of symbols
+in a specific region of memory, but unlike `dissect.py` it gives a graphical representation
+in the form of a svg file.
+
+### synopsis
+
+```
+$ python3 dissectSvg.py --help
+usage: dissectSvg.py [-h] [-p PREFIX] elffile mapfile region output
+
+positional arguments:
+  elffile               input elf file
+  mapfile               input map file
+  region                memory region to dissect
+  output                output file
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -p PREFIX, --prefix PREFIX
+                        prefix for nm tool (e.g. arm-none-eabi-, default: "")
+```
+
+### examples
+
+```
+$ python3 dissectSvg.py --prefix=arm-none-eabi-  examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.axf examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.map SRAM_ITC SRAM_ITC.svg
+```
+
+`SRAM_ITC.svg` is:
+
+<img src="doc/images/SRAM_ITC.svg" height="1000" />
+
 ## Further readings and developments
 
 These tools were inspired by reading this post:

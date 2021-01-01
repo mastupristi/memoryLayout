@@ -39,10 +39,8 @@ def main():
 
     bgColor = svgwrite.rgb(75, 75, 85, '%')
 
-    fgColor = [ svgwrite.rgb(70, 50, 50, '%'),
-                svgwrite.rgb(50, 70, 50, '%'),
-                svgwrite.rgb(50, 50, 70, '%'),
-                svgwrite.rgb(70, 70, 50, '%')]
+    fgColor = [ svgwrite.rgb(70, 60, 50, '%'),
+                svgwrite.rgb(60, 70, 50, '%')]
     
     dwg = svgwrite.Drawing(args.output, profile='full', size=(str(width), str(heigth)))
     dwg.add(dwg.rect((0, 0), (width, heigth), fill=bgColor))

@@ -1,4 +1,5 @@
 import subprocess
+import re
 from RegionRetriever import RegionRetriever
 
 class MetadataRetriever:
@@ -32,7 +33,7 @@ class MetadataRetriever:
                     MemoryMapDict["file"] = fields[2]
                     MemoryMapList.append(MemoryMapDict)
             return MemoryMapList
-        
+
         self.memoryMapList = getMemoryMapSlice(mapFile)
 
         def getCrossRefSection(mapFile):
@@ -79,11 +80,16 @@ class MetadataRetriever:
                     # be splitted in two.
                     symbolData["file"] = getFileFromMemoryMap(symbolData["addr"], symbolData["dim"], self.memoryMapList)
             else:
-                symbolData["file"] = fields[4].split(':')[0]
-                symbolData["line"] = int(fields[4].split(':')[1])
+                p = re.compile("^.*:\d+$")
+                if p.match(fields[4]):
+                    symbolData["file"] = ':'.join(fields[4].split(':')[:-1])
+                    symbolData["line"] = int(fields[4].split(':')[-1])
+                else:
+                    symbolData["file"] = fields[4]
+                    symbolData["line"] = 0
             symbolData["region"] = findRegion(symbolData["addr"], self.regions)
             return symbolData
-        
+
         symbolsList = []
         symbolsList.append(retreiveSymbolMetadata(self.symbolLineList[0]))
         for line in self.symbolLineList[1:]:

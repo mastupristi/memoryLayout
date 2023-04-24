@@ -86,11 +86,11 @@ file, in order to insert them into the elf file.
 It extracts the information and serializes it into JSON. Alternatively it can
 print them in human format.
 
-> Why not extract the information from the elf file?<br>
-> Because in the elf the information is incomplete, and needs to be interpreted. <br>
+> **Q**: Why not extract the information from the elf file?<br>
+> **A**: Because in the elf the information is incomplete, and needs to be interpreted. <br>
 >
-> Why not extract the information from the linker scripts?<br>
-> In linker scripts, memory regions often contain symbols, formulas, or linker
+> **Q**: Why not extract the information from the linker scripts?<br>
+> **A**: In linker scripts, memory regions often contain symbols, formulas, or linker
 scripts include others. So I preferred to start from the map file that contains
 a description of the regions already processed and usable.
 
@@ -106,7 +106,7 @@ positional arguments:
 optional arguments:
   -h, --help  show this help message and exit
   --human     print human readable
-max@jarvis:~/Dropbox/4202/prog/memLayout$ 
+
 ```
 
 ### examples
@@ -122,7 +122,7 @@ SRAM_ITC         0x0000000000000000 0x0000000000020000 xrw
 SRAM_OC          0x0000000020200000 0x0000000000040000 xrw
 BOARD_SDRAM      0x0000000080000000 0x0000000002000000 xrw
 
-$ python3 memRegion.py --human evkbimxrt1050_sai_interrupt_transfer_link-to-ram.map 
+$ python3 memRegion.py --human evkbimxrt1050_sai_interrupt_transfer_link-to-ram.map
 Name             Origin             Length             Attributes
 BOARD_FLASH      0x0000000060000000 0x0000000004000000 xr
 SRAM_ITC         0x0000000000000000 0x0000000000020000 xrw
@@ -138,7 +138,7 @@ This is almost the same format as the memory regions within the map file.
 $ python3 memRegion.py evkbimxrt1050_sai_interrupt_transfer_flash.map
 {"BOARD_FLASH": {"Origin": 1610612736, "Length": 67108864, "Attributes": "xr"}, "SRAM_DTC": {"Origin": 536870912, "Length": 131072, "Attributes": "xrw"}, "SRAM_ITC": {"Origin": 0, "Length": 131072, "Attributes": "xrw"}, "SRAM_OC": {"Origin": 538968064, "Length": 262144, "Attributes": "xrw"}, "BOARD_SDRAM": {"Origin": 2147483648, "Length": 33554432, "Attributes": "xrw"}}
 
-$ python3 memRegion.py evkbimxrt1050_sai_interrupt_transfer_link-to-ram.map 
+$ python3 memRegion.py evkbimxrt1050_sai_interrupt_transfer_link-to-ram.map
 {"BOARD_FLASH": {"Origin": 1610612736, "Length": 67108864, "Attributes": "xr"}, "SRAM_ITC": {"Origin": 0, "Length": 131072, "Attributes": "xrw"}, "SRAM_DTC": {"Origin": 536870912, "Length": 131072, "Attributes": "xrw"}, "SRAM_OC": {"Origin": 538968064, "Length": 262144, "Attributes": "xrw"}, "BOARD_SDRAM": {"Origin": 2147483648, "Length": 33554432, "Attributes": "xrw"}}
 ```
 #### embedding JSON into elf
@@ -188,8 +188,8 @@ Key to Flags:
   y (purecode), p (processor specific)
 ```
 
-> Why embed the JSON of the regions into the elf?<br>
-> It's actually not strictly required, as the `memoryLayout.py` tool is
+> **Q**: Why embed the JSON of the regions into the elf?<br>
+> **A**: It's actually not strictly required, as the `memoryLayout.py` tool is
 able to draw from both elf and map. However, it is one more option:<br>
 > Instead of needing both the elf and the map (often very large and not always
 available) you can only transport the elf containing the required information.
@@ -239,7 +239,7 @@ Memory region             .text        .data         .bss      LoadMap        To
      BOARD_SDRAM:           0 B          0 B          0 B          0 B          0 B
 
 
-$ python3 memoryLayout.py -ro evkbimxrt1050_sai_interrupt_transfer_flash.axf evkbimxrt1050_sai_interrupt_transfer_flash.map 
+$ python3 memoryLayout.py -ro evkbimxrt1050_sai_interrupt_transfer_flash.axf evkbimxrt1050_sai_interrupt_transfer_flash.map
 Memory region             .text      .rodata        .data         .bss      LoadMap        Total
      BOARD_FLASH:       83360 B       8192 B          0 B          0 B         28 B      91580 B
         SRAM_DTC:           0 B          0 B         28 B       8768 B          0 B       8796 B
@@ -297,7 +297,7 @@ Using the `--fill` option you ask the tool to try to guess these gaps and list t
 
 ```
 $ python3 dissect.py --type=normal --uniq --prefix=arm-none-eabi- examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.axf examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.map
-          Region  addr(hex)    addr(dec) size(hex)  type                                   symbol path
+          Region  addr(hex)    addr(dec) size(dec)  type                                   symbol path
         SRAM_ITC 0x00000000            0       672     T                             g_pfnVectors /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../startup/startup_mimxrt1052.c:414
         SRAM_ITC 0x000002f0          752        76     T                                 ResetISR /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../startup/startup_mimxrt1052.c:630
         SRAM_ITC 0x0000033c          828        30     T                                data_init /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../startup/startup_mimxrt1052.c:596
@@ -315,7 +315,7 @@ $ python3 dissect.py --type=normal --uniq --prefix=arm-none-eabi- examples/evkbi
 
 
 python3 dissect.py --type=normal --fill --prefix=arm-none-eabi- examples/evkbimxrt1050_sai_interrupt_transfer_flash.axf examples/evkbimxrt1050_sai_interrupt_transfer_flash.map
-          Region  addr(hex)    addr(dec) size(hex)  type                                   symbol path
+          Region  addr(hex)    addr(dec) size(dec)  type                                   symbol path
         SRAM_DTC 0x20000000    536870912         4     D                          SystemCoreClock /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../device/system_MIMXRT1052.c:67
         SRAM_DTC 0x20000004    536870916        24     D                         boardCodecConfig /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../board/board.c:22
         SRAM_DTC 0x2000001c    536870940        28     b                      s_debugConsoleState /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../utilities/fsl_debug_console.c:194
@@ -329,17 +329,17 @@ python3 dissect.py --type=normal --fill --prefix=arm-none-eabi- examples/evkbimx
 [...]
      BOARD_FLASH 0x6001558c   1610700172        36     t                            s_lpuartBases /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_lpuart.c:76
      BOARD_FLASH 0x600155b0   1610700208        18     t                            s_lpuartClock /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_lpuart.c:88
-     BOARD_FLASH 0x600155c2   1610700226      1022                                         *fill* 
+     BOARD_FLASH 0x600155c2   1610700226      1022                                         *fill*
      BOARD_FLASH 0x600159c0   1610701248        16     t                               s_saiBases /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_sai.c:98
      BOARD_FLASH 0x600159d0   1610701264         8     t                               s_saiTxIRQ /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_sai.c:102
      BOARD_FLASH 0x600159d8   1610701272         8     t                               s_saiClock /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../drivers/fsl_sai.c:106
      BOARD_FLASH 0x600159e0   1610701280        36     t                      s_LpuartAdapterBase /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../component/uart/lpuart_adapter.c:63
-     BOARD_FLASH 0x60015a04   1610701316      2524                                         *fill* 
+     BOARD_FLASH 0x60015a04   1610701316      2524                                         *fill*
      BOARD_FLASH 0x600163e0   1610703840       112     t                               wm8960_reg /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../codec/fsl_wm8960.c:27
-     BOARD_FLASH 0x60016450   1610703952       160                                         *fill* 
+     BOARD_FLASH 0x60016450   1610703952       160                                         *fill*
      BOARD_FLASH 0x600164f0   1610704112         8     T          armPllConfig_BOARD_BootClockRUN /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../board/clock_config.c:142
      BOARD_FLASH 0x600164f8   1610704120        20     T          sysPllConfig_BOARD_BootClockRUN /home/max/Lavori/4202/wksp_test1/evkbimxrt1050_sai_interrupt_transfer/Debug/../board/clock_config.c:146
-     BOARD_FLASH 0x6001650c   1610704140        40                                         *fill* 
+     BOARD_FLASH 0x6001650c   1610704140        40                                         *fill*
      BOARD_FLASH 0x60016534   1610704180         4     T                       __num_Ciob_streams /usr/local/mcuxpressoide-10.3.1_2233/ide/plugins/com.nxp.mcuxpresso.tools.linux_10.3.0.201811011841/tools/bin/../lib/gcc/arm-none-eabi/7.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m/fpv5/hard/libcr_semihost_nf.a(__ciob.o)
 ```
 
@@ -392,7 +392,7 @@ optional arguments:
 ### examples
 
 ```
-$ python3 regions.py examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.axf examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.map 
+$ python3 regions.py examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.axf examples/evkbimxrt1050_sai_interrupt_transfer_link-to-ram.map
 BOARD_FLASH
 SRAM_ITC
 SRAM_DTC

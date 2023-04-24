@@ -14,7 +14,7 @@ class LineEmitter:
         charactersForSymbol = max(symbolStringExtent, 40)
         self.formatStr = "%%%ds %%10s %%12s %%9s %%5s %%%ds %%s" % (charactersForRegion, charactersForSymbol)
         self.csv = csv
-    
+
     def emitLine(self, elementlist, file2out):
         if(True == self.csv):
             stroutline = ','.join(elementlist)
@@ -67,7 +67,7 @@ def main():
     fields = [  "Region",
                 "addr(hex)",
                 "addr(dec)",
-                "size(hex)",
+                "size(dec)",
                 "type",
                 "symbol",
                 "path"]
@@ -86,7 +86,7 @@ def main():
                 fileField += ":%d" % symbol["line"]
         else:
             fileField = ""
-        
+
         fields = [  symbol["region"],
                     "0x%08x" % symbol["addr"],
                     "%d" % symbol["addr"],
@@ -98,7 +98,7 @@ def main():
         emitter.emitLine(fields, args.out)
         lastaddr = symbol["addr"]
 
-    
+
 if __name__ == '__main__':
     main()
 

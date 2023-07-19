@@ -6,7 +6,7 @@ class RegionRetriever:
     def __init__(self, elfFile=None, mapFile=None):
         def retrieveMemoryConfFromMap(mapfile):
             patternIni = re.compile("^Memory Configuration$")
-            patternMem = re.compile("^[A-Za-z0-9_\*]+\s+0x[0-9a-fA-F]{8,16} 0x[0-9a-fA-F]{8,16}\s*\w*$")
+            patternMem = re.compile("^[A-Za-z0-9_\*]+\s+0x[0-9a-fA-F]{8,16}\s+0x[0-9a-fA-F]{8,16}\s+.*$")
             keys = ("Origin","Length","Attributes")
             with open(mapfile, "r") as a_file:
                 line = a_file.readline()
@@ -24,7 +24,7 @@ class RegionRetriever:
                         memDesc = line.strip().split()
                         if "*default*" == memDesc[0]:
                             break
-                        memDict[memDesc[0]] = dict(zip(keys, (int(memDesc[1], 16), int(memDesc[2], 16), memDesc[3])))
+                        memDict[memDesc[0]] = dict(zip(keys, (int(memDesc[1], 16), int(memDesc[2], 16), ' '.join(memDesc[3:]))))
                     line = a_file.readline()
             return memDict
 

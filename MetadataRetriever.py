@@ -80,7 +80,7 @@ class MetadataRetriever:
                     # be splitted in two.
                     symbolData["file"] = getFileFromMemoryMap(symbolData["addr"], symbolData["dim"], self.memoryMapList)
             else:
-                p = re.compile("^.*:\d+$")
+                p = re.compile(r"^.*:\d+$")
                 if p.match(fields[4]):
                     symbolData["file"] = ':'.join(fields[4].split(':')[:-1])
                     symbolData["line"] = int(fields[4].split(':')[-1])

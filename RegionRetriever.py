@@ -5,8 +5,8 @@ from elftools.elf.elffile import ELFFile
 class RegionRetriever:
     def __init__(self, elfFile=None, mapFile=None):
         def retrieveMemoryConfFromMap(mapfile):
-            patternIni = re.compile("^Memory Configuration$")
-            patternMem = re.compile("^[A-Za-z0-9_\*]+\s+0x[0-9a-fA-F]{8,16}\s+0x[0-9a-fA-F]{8,16}\s+.*$")
+            patternIni = re.compile(r"^Memory Configuration$")
+            patternMem = re.compile(r"^[A-Za-z0-9_\*]+\s+0x[0-9a-fA-F]{8,16}\s+0x[0-9a-fA-F]{8,16}\s+.*$")
             keys = ("Origin","Length","Attributes")
             with open(mapfile, "r") as a_file:
                 line = a_file.readline()

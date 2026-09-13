@@ -293,6 +293,27 @@ Due to data types or alignments placed on memory sections, it may happen that th
 are "gaps" between various symbols. In the `.map` file they are indicated with `*fill*`.
 Using the `--fill` option you ask the tool to try to guess these gaps and list them.
 
+String literals are a special case of this: `nm` never emits a symbol for them, so a
+gap that actually contains string data used to be indistinguishable from real alignment
+padding. When the `.map` file names the corresponding input section as a mergeable
+string-literal section (GCC's `.rodata[.<function>].strN.M` convention, which appears
+whenever `-fmerge-constants` is in effect, i.e. from `-O1`/`-Os`/`-O2` on, or explicitly),
+the tool now reports that part of the gap as `*str*` (attributed to its `.o`) instead of
+`*fill*`, and `*str*` entries are shown even without `--fill` since they are real content,
+not padding.<br>
+This only works for a gap that falls **between two symbols the tool already sees** in the
+same region: if the string section is the first or last thing in a region (nothing follows
+it in that region, as can happen with library code placed at the tail of a region), there
+is no closing symbol to detect the gap against in the first place, and it stays invisible,
+same as it was for a plain `*fill*` in that position before this feature existed.<br>
+Under heavy string deduplication (many translation units sharing identical/overlapping
+literals, which `-fmerge-constants` actively encourages) `ld` can report several different
+`.strN.M` input sections at the very same output address, each with its own pre-merge size
+— the map alone cannot tell you which physical bytes came from which contributor once they
+have been folded together. In that case the tool reports one `*str*` entry spanning the
+recoverable (post-merge) extent, with the file field naming one contributing `.o` plus a
+`(+N other files)` count, rather than guessing at a byte-exact split it cannot know.
+
 ### examples
 
 ```

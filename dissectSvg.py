@@ -47,9 +47,13 @@ def main():
 
     fgColorVectorDim = len(fgColor)
     fgColorIndex = 0
-    lastaddr = -1
+    lastkey = None
     for symbol in symbolList:
-        if lastaddr == symbol["addr"]:
+        # (addr, dim), not addr alone: a zero-size symbol and a real *str*
+        # entry can legitimately start at the same address without being
+        # duplicates of each other - see dissect.py for the full story.
+        key = (symbol["addr"], symbol["dim"])
+        if lastkey == key:
             continue
         if symbol["fill"]:
             continue
@@ -58,7 +62,7 @@ def main():
 
         dwg.add(dwg.rect((0, symbolY), (width, symbol["dim"]/div), fill=fgColor[fgColorIndex]))
 
-        lastaddr = symbol["addr"]
+        lastkey = key
         fgColorIndex += 1
         if fgColorIndex >= fgColorVectorDim:
             fgColorIndex = 0

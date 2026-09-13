@@ -12,7 +12,7 @@ class LineEmitter:
     def __init__(self, regionStringExtent=16, symbolStringExtent=40, csv=False):
         charactersForRegion = max(regionStringExtent, 16)
         charactersForSymbol = max(symbolStringExtent, 40)
-        self.formatStr = "%%%ds %%10s %%12s %%9s %%5s %%%ds %%s" % (charactersForRegion, charactersForSymbol)
+        self.formatStr = "%%%ds %%10s %%12s %%10s %%12s %%9s %%5s %%%ds %%s" % (charactersForRegion, charactersForSymbol)
         self.csv = csv
 
     def emitLine(self, elementlist, file2out):
@@ -67,6 +67,8 @@ def main():
     fields = [  "Region",
                 "addr(hex)",
                 "addr(dec)",
+                "lma(hex)",
+                "lma(dec)",
                 "size(dec)",
                 "type",
                 "symbol",
@@ -74,9 +76,15 @@ def main():
 
     emitter.emitLine(fields, args.out)
 
-    lastaddr = -1
+    lastkey = None
     for symbol in symbolList:
-        if args.uniq and lastaddr == symbol["addr"]:
+        # Compare (addr, dim), not addr alone: a zero-size symbol (e.g. a
+        # linker-provided table marker with no .size) and a real *fill*/*str*
+        # entry that happens to start right after it legitimately share the
+        # same starting address without being duplicates of each other -
+        # only genuine aliases share both address and size.
+        key = (symbol["addr"], symbol["dim"])
+        if args.uniq and lastkey == key:
             continue
         if (not args.fill) and symbol["fill"]:
             continue
@@ -90,13 +98,15 @@ def main():
         fields = [  symbol["region"],
                     "0x%08x" % symbol["addr"],
                     "%d" % symbol["addr"],
+                    "0x%08x" % symbol["lma"],
+                    "%d" % symbol["lma"],
                     "%d" % symbol["dim"],
                     "%c" % symbol["attr"],
                     symbol["name"],
                     fileField
         ]
         emitter.emitLine(fields, args.out)
-        lastaddr = symbol["addr"]
+        lastkey = key
 
 
 if __name__ == '__main__':

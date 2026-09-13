@@ -1,5 +1,6 @@
 import subprocess
 import re
+from elftools.elf.elffile import ELFFile
 from RegionRetriever import RegionRetriever
 
 class MetadataRetriever:
@@ -9,8 +10,38 @@ class MetadataRetriever:
             regions = memMapRetriever.GetRegions()
         self.regions = regions
 
+        def buildVmaToLmaRanges(elfFile):
+            # A PT_LOAD segment's p_vaddr is where its content runs (VMA) and
+            # p_paddr is where it is stored/loaded (LMA); they differ e.g. for
+            # .data placed in flash (LMA) but executed from RAM (VMA) after the
+            # startup code copies it. For an address inside such a segment,
+            # LMA = VMA + (p_paddr - p_vaddr); elsewhere (offset 0) LMA == VMA.
+            ranges = []
+            with open(elfFile, 'rb') as f:
+                for segment in ELFFile(f).iter_segments():
+                    if 'PT_LOAD' == segment.header['p_type'] and segment.header['p_memsz'] > 0:
+                        vaddr = segment.header['p_vaddr']
+                        paddr = segment.header['p_paddr']
+                        ranges.append((vaddr, vaddr + segment.header['p_memsz'], paddr - vaddr))
+            return ranges
+
+        self.vmaToLmaRanges = buildVmaToLmaRanges(elfFile)
+
         def retreiveSymbolLines(nmPrefix, elfFile):
-            cmdLine= nmPrefix + "nm -s -n -S -l --defined-only " +elfFile+ " | grep -E \"^[[:xdigit:]]{8} [[:xdigit:]]{8} [[:alpha:]] \""
+            # nm -S omits the size column entirely (not "00000000") for a symbol
+            # whose recorded ELF size is 0 - e.g. hand-written assembly routines
+            # that never emitted a .size directive (memchr-style libc internals
+            # are a common real-world case). The size field is therefore made
+            # optional here so such symbols are not silently dropped: they are
+            # real code/data occupying real bytes, just of unknown extent to nm.
+            # Type 'A' (absolute) is explicitly excluded from that no-size
+            # relaxation: those are linker-script constants (e.g. __top_FLASH,
+            # a computed ORIGIN+LENGTH), not actual bytes anywhere in memory,
+            # and letting them into the gap-detection address stream corrupts
+            # it (a constant can coincidentally fall inside a real gap).
+            cmdLine= (nmPrefix + "nm -s -n -S -l --defined-only " + elfFile +
+                      " | grep -E \"^[[:xdigit:]]{8} ([[:xdigit:]]{8} )?[[:alpha:]] \"" +
+                      " | grep -v -E \"^[[:xdigit:]]{8} A \"")
             process = subprocess.run(cmdLine, shell=True, stdout=subprocess.PIPE)
             process.check_returncode()
             return process.stdout.decode("utf-8").strip().splitlines()
@@ -85,6 +116,18 @@ class MetadataRetriever:
 
         self.crossRefDict = getCrossRefSection(mapFile)
 
+    def vmaToLma(self, addr):
+        for vmaStart, vmaEnd, offset in self.vmaToLmaRanges:
+            if vmaStart <= addr < vmaEnd:
+                return addr + offset
+        return addr
+
+    def hasStringCoverage(self, gapStart, gapEnd):
+        return any(
+            element["isString"] and element["addr"] < gapEnd and (element["addr"] + element["dim"]) > gapStart
+            for element in self.memoryMapList
+        )
+
     def retreiveSymbols(self):
         def retreiveSymbolMetadata(line):
             def getFileFromMemoryMap(addr, dim, MemoryMapList):
@@ -101,11 +144,44 @@ class MetadataRetriever:
             fields=line.split()
             symbolData = {}
             symbolData["addr"] = int(fields[0], 16)
-            symbolData["dim"] = int(fields[1], 16)
-            symbolData["attr"] = fields[2]
-            symbolData["name"] = fields[3]
+            # A lone letter in the size slot means nm omitted the size column
+            # (see retreiveSymbolLines): the symbol's real size is unknown, not 0
+            # bytes of content - it still occupies space up to whatever follows.
+            if re.match(r'^[A-Za-z]$', fields[1]):
+                symbolData["dim"] = 0
+                symbolData["attr"] = fields[1]
+                symbolData["name"] = fields[2]
+                fileField = fields[3] if len(fields) > 3 else None
+            else:
+                symbolData["dim"] = int(fields[1], 16)
+                symbolData["attr"] = fields[2]
+                symbolData["name"] = fields[3]
+                fileField = fields[4] if len(fields) > 4 else None
             symbolData["fill"] = False
-            if(len(fields) == 4):
+
+            crossRefFile = ""
+            if 0 == symbolData["dim"]:
+                # A symbol nm could not size usually has no dedicated debug info
+                # of its own either (hand-written assembly routines, aliases),
+                # so nm -l's "nearest line" guess for it is frequently wrong -
+                # confirmed e.g. for libc's assembly memchr(), which nm -l
+                # attributes to an unrelated CMSIS header it happens to sit
+                # next to in the link. The Cross Reference Table's defining-.o
+                # entry is more trustworthy here, so prefer it when available.
+                crossRefFile = self.crossRefDict.get(symbolData["name"], "")
+
+            if crossRefFile:
+                symbolData["file"] = crossRefFile
+                symbolData["line"] = 0
+            elif fileField is not None:
+                p = re.compile(r"^.*:\d+$")
+                if p.match(fileField):
+                    symbolData["file"] = ':'.join(fileField.split(':')[:-1])
+                    symbolData["line"] = int(fileField.split(':')[-1])
+                else:
+                    symbolData["file"] = fileField
+                    symbolData["line"] = 0
+            else:
                 symbolData["line"] = 0
                 # if nm fails to retreive file info related to a symbol we try to find it in
                 # the cross reference section of map file.
@@ -115,15 +191,8 @@ class MetadataRetriever:
                     # to find it in the memory map section. The infos can be all in 1 line or can
                     # be splitted in two.
                     symbolData["file"] = getFileFromMemoryMap(symbolData["addr"], symbolData["dim"], self.memoryMapList)
-            else:
-                p = re.compile(r"^.*:\d+$")
-                if p.match(fields[4]):
-                    symbolData["file"] = ':'.join(fields[4].split(':')[:-1])
-                    symbolData["line"] = int(fields[4].split(':')[-1])
-                else:
-                    symbolData["file"] = fields[4]
-                    symbolData["line"] = 0
             symbolData["region"] = findRegion(symbolData["addr"], self.regions)
+            symbolData["lma"] = self.vmaToLma(symbolData["addr"])
             return symbolData
 
         def buildGapEntries(region, gapStart, gapEnd):
@@ -143,6 +212,7 @@ class MetadataRetriever:
                     "file": file,
                     "line": 0,
                     "fill": fill,
+                    "lma": self.vmaToLma(addr),
                 }
 
             # Under -fmerge-constants ld can (and, in practice, routinely does)
@@ -209,13 +279,47 @@ class MetadataRetriever:
             return entries
 
         symbolsList = []
-        symbolsList.append(retreiveSymbolMetadata(self.symbolLineList[0]))
+        # Per-region high-water mark of "addr + dim" already accounted for.
+        # A size-less symbol (dim 0, see retreiveSymbolMetadata) can sit
+        # *inside* an earlier, properly-sized symbol's range (e.g. a static
+        # local nm couldn't size, declared inside a function's own bytes, or
+        # an internal entry point inside one bigger assembly routine) - using
+        # only the immediately preceding list entry's end as the next gap's
+        # start would then walk the cursor backwards and double-count bytes
+        # already covered by that earlier symbol. The watermark never moves
+        # backwards, so it is immune to that regardless of how the size-less
+        # symbols are interleaved with properly-sized ones.
+        regionWatermark = {}
+        firstSymbol = retreiveSymbolMetadata(self.symbolLineList[0])
+        symbolsList.append(firstSymbol)
+        regionWatermark[firstSymbol["region"]] = firstSymbol["addr"] + firstSymbol["dim"]
         for line in self.symbolLineList[1:]:
             symbolData = retreiveSymbolMetadata(line)
-            if symbolData["region"] == symbolsList[-1]["region"] and (symbolsList[-1]["addr"] + symbolsList[-1]["dim"]) < symbolData["addr"]:
-                gapStart = symbolsList[-1]["addr"] + symbolsList[-1]["dim"]
+            region = symbolData["region"]
+            watermark = regionWatermark.get(region)
+            if watermark is not None and watermark < symbolData["addr"]:
+                gapStart = watermark
                 gapEnd = symbolData["addr"]
-                symbolsList.extend(buildGapEntries(symbolData["region"], gapStart, gapEnd))
+                lastEntry = symbolsList[-1] if symbolsList else None
+                # If the gap starts exactly where a size-less symbol (dim 0)
+                # sits, there is no better evidence for those bytes than "they
+                # belong to the symbol that starts right here" - infer its
+                # size up to this next known boundary instead of reporting an
+                # anonymous, unattributed *fill*/*str* immediately after it
+                # (confirmed on real firmware: nm's size-less memchr() was
+                # followed by a same-address *fill* that was actually its own
+                # Thumb code). This is a best-effort guess, not ground truth:
+                # genuine padding between the symbol and the next one would be
+                # counted as part of it too. Map-confirmed string coverage is
+                # hard evidence and always takes precedence over this guess.
+                if (lastEntry is not None and lastEntry["region"] == region and
+                        lastEntry["dim"] == 0 and lastEntry["addr"] == gapStart and
+                        not self.hasStringCoverage(gapStart, gapEnd)):
+                    lastEntry["dim"] = gapEnd - gapStart
+                else:
+                    symbolsList.extend(buildGapEntries(region, gapStart, gapEnd))
             symbolsList.append(symbolData)
+            symbolEnd = symbolData["addr"] + symbolData["dim"]
+            regionWatermark[region] = max(watermark, symbolEnd) if watermark is not None else symbolEnd
 
         return symbolsList
